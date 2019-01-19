@@ -89,6 +89,10 @@ namespace Overseer
             {
                 en.MoveNext();                
                 Item item = en.Current.Value;
+                if (item.MadeByRecipes.Count == 0 && item.UsedInRecipes.Count == 0)
+                {
+                    continue;
+                }
                 Data.Icons.TryGetValue(item.name, out Image xd);
                 string localised_name = item.localised_name;
                 if (localised_name == null)

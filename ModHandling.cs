@@ -56,7 +56,7 @@ namespace Overseer
             }
             else
             {
-                modz.Add("__base__", Settings.FactorioPath);
+                modz.Add("__base__", Settings.FactorioPath + @"\data\base");
                 Data.Locale[0] = new Dictionary<string, string>(); //Items
                 Data.Locale[1] = new Dictionary<string, string>(); //Fluids
                 Data.Locale[2] = new Dictionary<string, string>(); //Recipes
@@ -133,15 +133,18 @@ namespace Overseer
 
         static void CheckExtractedMods()
         {
-            IEnumerable<string> ExtractedModPaths = Directory.EnumerateDirectories(Settings.tempModPath);
-            foreach(string str in ExtractedModPaths)
+            if(Directory.Exists(Settings.tempModPath))
             {
-                string modname = str.Replace(Settings.tempModPath + "\\", "");
-                //parsedModName can be used to check if existing extracted mod is up to date.
-                //
-                //TODO: Version checking
-                string[] parsedModName = modname.Split('_');
-                ExtractedMods.Add(parsedModName[0]);
+                IEnumerable<string> ExtractedModPaths = Directory.EnumerateDirectories(Settings.tempModPath);
+                foreach (string str in ExtractedModPaths)
+                {
+                    string modname = str.Replace(Settings.tempModPath, "");
+                    //parsedModName can be used to check if existing extracted mod is up to date.
+                    //
+                    //TODO: Version checking
+                    string[] parsedModName = modname.Split('_');
+                    ExtractedMods.Add(parsedModName[0]);
+                }
             }
         }
 
@@ -173,7 +176,7 @@ namespace Overseer
 
         static void BuildModObjects()
         {
-            ParseLocaleFile(Settings.FactorioPath);
+            ParseLocaleFile(Settings.FactorioPath + @"\data\base");
             IEnumerable<string> ExtractedModPaths = Directory.EnumerateDirectories(Settings.tempModPath);
             foreach (string str in ExtractedModPaths)
             {
@@ -194,6 +197,17 @@ namespace Overseer
                         newMod.Path = str;
                         Mods.Add(newMod);
                         modz.Add("__" + newMod.modInfo.name + "__", str);
+
+                        if(modInfo.name.Contains("bobplates"))
+                        {
+                            if(File.Exists(str + @"\data-updates.lua"))
+                            {
+                                string[] lines = File.ReadAllLines(str + @"\data-updates.lua");
+                                lines[107] = "";
+                                lines[108] = "";
+                                File.WriteAllLines(str + @"\data-updates.lua", lines);
+                            }
+                        }
                     }
                 }  
             }
@@ -294,22 +308,22 @@ namespace Overseer
                 {
                     foreach (string dep in mod.modInfo.dependencies)
                     {
-                        Regex regex = new Regex(@"[>=<]+");
-                        Match match = regex.Match(dep);
-                        string[] values = regex.Split(dep);
-                        int valuesNum = values.Count();
-                        string name = values[0];
-                        name = name.Remove(name.Length - 1, 1);
-                        string[] val = name.Split(' ');
+                        string dep2 = dep;
                         bool Optional = false;
-                        if (val.Count() > 1)
+                        if (dep2.StartsWith("?"))
                         {
                             Optional = true;
-                            name = val[1];
+                            dep2 = dep2.Trim(new char[] { '?', ' '});
                         }
+                        string[] values = dep2.Split(' ');
+                        string name = values[0];
                         if (!name.Equals("base"))
                         {
-                            string version = values[1];
+                            string version = "";
+                            if (values.Length > 1)
+                            {
+                                version = values[2];
+                            }
 
                             ModDependency modDep = new ModDependency{ bOptional = Optional };
                             bool bFound = false;

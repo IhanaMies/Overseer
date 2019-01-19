@@ -15,15 +15,14 @@ namespace Overseer
     public class DataLoader
     {
         static Lua lua = new Lua();
-        static string FacPath = "M:\\Pelit\\Steam\\steamapps\\common\\Factorio\\data";
         public DataLoader()
         {
-            lua["package.path"] = @"M:\\Pelit\\Steam\\steamapps\\common\\Factorio\\data\\base\\?";
-            lua["package.path"] = lua["package.path"] + ";M:\\Pelit\\Steam\\steamapps\\common\\Factorio\\data\\base\\?.lua";
-            lua["package.path"] = lua["package.path"] + ";M:\\Pelit\\Steam\\steamapps\\common\\Factorio\\data\\core\\?";
-            lua["package.path"] = lua["package.path"] + ";M:\\Pelit\\Steam\\steamapps\\common\\Factorio\\data\\core\\?.lua";
-            lua["package.path"] = lua["package.path"] + ";M:\\Pelit\\Steam\\steamapps\\common\\Factorio\\data\\core\\lualib\\?";
-            lua["package.path"] = lua["package.path"] + ";M:\\Pelit\\Steam\\steamapps\\common\\Factorio\\data\\core\\lualib\\?.lua";
+            lua["package.path"] = Settings.FactorioPath + @"\data\base\?";
+            lua["package.path"] = lua["package.path"] + ";" + Settings.FactorioPath + @"\data\base\?.lua";
+            lua["package.path"] = lua["package.path"] + ";" + Settings.FactorioPath + @"\data\core\?";
+            lua["package.path"] = lua["package.path"] + ";" + Settings.FactorioPath + @"\data\core\?.lua";
+            lua["package.path"] = lua["package.path"] + ";" + Settings.FactorioPath + @"\data\core\lualib\?";
+            lua["package.path"] = lua["package.path"] + ";" + Settings.FactorioPath + @"\data\core\lualib\?.lua";
             string luascript = (@"
                     require ('util')
 
@@ -49,15 +48,16 @@ namespace Overseer
                     require('data')
                     require('data-updates')
                 ");
-            lua.DoFile("M:\\Pelit\\Steam\\steamapps\\common\\Factorio\\data\\core\\lualib\\dataloader.lua");
-            lua.DoFile("M:\\Pelit\\Steam\\steamapps\\common\\Factorio\\data\\core\\data.lua");
+            lua.DoFile(Settings.FactorioPath + @"\data\core\lualib\dataloader.lua");
+            lua.DoFile(Settings.FactorioPath + @"\data\core\data.lua");
             lua.DoString(luascript);
 
             lua.DoString(@"
                         function electrolyserpictures() end
                         data.raw['item-subgroup']['bob-greenhouse-items'] = {}
                         data.raw['item-subgroup']['bob-greenhouse-items'].group = 'bob-intermediate-products'
-                        mods = {}");
+                        mods = {}
+                        ");
 
             LoadMods();            
 
@@ -233,7 +233,7 @@ namespace Overseer
         }
         void SetPackagePath(string modFolderFullPath)
         {
-            lua["package.path"] = @"M:\Pelit\Steam\steamapps\common\Factorio\data\core\lualib\" + @"\?.lua";
+            lua["package.path"] = Settings.FactorioPath + @"\data\core\lualib\" + @"\?.lua";
             lua["package.path"] = lua["package.path"] + ";" + modFolderFullPath + "\\?.lua";
             lua["package.path"] = lua["package.path"] + ";" + modFolderFullPath + "\\prototypes\\?";
             lua["package.path"] = lua["package.path"] + ";" + modFolderFullPath + "\\prototypes\\?.lua";
@@ -348,10 +348,10 @@ namespace Overseer
         }
         void ResetLoadedPackages()
         {
-            lua.DoString(@"
-							for k, v in pairs(package.loaded) do
-								package.loaded[k] = false
-							end");
+             lua.DoString(@"
+ 							for k, v in pairs(package.loaded) do
+ 								package.loaded[k] = false
+ 							end");
         }
         void RunLuaFile(string modFolderFullPath, string inLuaFileType)
         {
@@ -366,10 +366,6 @@ namespace Overseer
             if (inTable["type"].ToString() != "recipe")
             {
                 return null;
-            }
-            if(inTable["name"].ToString() == "nuclear-fuel-reprocessing")
-            {
-                int x = 0;
             }
             bool bSingleResult = false;
             Recipe newRecipe = new Recipe();

@@ -10,7 +10,7 @@ namespace Overseer
 {
     public static class Settings
     {
-        public static string FactorioPath = "M:\\Pelit\\Steam\\steamapps\\common\\Factorio\\data\\base";
+        public static string FactorioPath = "";
         public static string FactorioDataPath = "";
         public static string tempModPath = "";
     }

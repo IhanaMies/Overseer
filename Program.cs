@@ -23,12 +23,13 @@ namespace Overseer
             if(File.Exists("settings.cfg"))
             {
                 string[] lines = File.ReadAllLines("settings.cfg");
-                if(Directory.Exists(lines[0]))
+                if(!Directory.Exists(lines[0]) || !File.Exists(lines[0] + @"\config-path.cfg"))
                 {
-                    if(!File.Exists(lines[0] + @"\config-path.cfg"))
-                    {
                         Application.Run(new FactorioFolderSelectionForm());
-                    }
+                }
+                else
+                {
+                    Settings.FactorioPath = lines[0];
                 }
             }
             else
