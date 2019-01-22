@@ -10,6 +10,9 @@ using Newtonsoft.Json;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Runtime.Serialization.Formatters.Binary;
+using System.ComponentModel;
+using FactorioApp;
+using System.Windows.Forms;
 
 namespace Overseer
 {
@@ -35,17 +38,93 @@ namespace Overseer
 
         public static IDictionary<string, string> modz = new Dictionary<string, string>();
 
-        public static void GetModList()
+        private static BackgroundWorker backgroundWorker;
+        private static DataLoadingProgressForm form;
+
+        private static float progressTask = 0.0f;
+        private static float progressTotal = 0.0f;
+        private static int tasksCompleted = 0;
+        private static string[] progressTexts = {
+        "Deserializing data",
+        "Getting enabled mods",
+        "Checking extracted mods",
+        "Extracting Mods",
+        "Building mod objects",
+        "Parsing mod dependencies",
+        "Building load order",
+        "Loading prototypes",
+        "Serializing data", };
+
+        static public void InitializeDataBackgroundWorker()
+        {
+            string str = Settings.FactorioPath;
+            backgroundWorker = new BackgroundWorker();
+            form = new DataLoadingProgressForm();
+            form.TaskTextBox.Text = "Getting ignored mods";
+            form.Show();
+            backgroundWorker.WorkerReportsProgress = true;
+            backgroundWorker.WorkerSupportsCancellation = true;
+            backgroundWorker.DoWork += new DoWorkEventHandler(BackgroundWorker_DoWork);
+            backgroundWorker.ProgressChanged += new ProgressChangedEventHandler(BackgroundWorker_ProgressChanged);
+            backgroundWorker.RunWorkerCompleted += new RunWorkerCompletedEventHandler(BackgroundWorker_RunWorkerCompleted);
+            backgroundWorker.RunWorkerAsync();
+        }
+
+        static private void BackgroundWorker_RunWorkerCompleted(object sender, RunWorkerCompletedEventArgs e)
+        {
+            if (form != null)
+            {
+                form.Close();
+            }
+            Form1 form1 = (Form1)Form.ActiveForm;
+            form1.PopulateItemList();
+        }
+
+        static private void BackgroundWorker_ProgressChanged(object sender, ProgressChangedEventArgs e)
+        {
+            if (form == null)
+            {
+                return;
+            }
+
+            if (e.ProgressPercentage == 0)
+            {
+                form.TaskTextBox.Text = progressTexts[0];
+            }
+            else
+            {
+                float progressF = 100.0f / e.ProgressPercentage;
+                progressTask += progressF;
+                int progressI = Convert.ToInt16(progressTask);
+                form.progressBarTask.Value = progressI;
+                if (progressI == 100)
+                {
+                    progressTask = 0.0f;
+                    progressTotal += (100.0f / 9);
+                    form.progressBarTotal.Value = Convert.ToInt16(progressTotal);
+                    tasksCompleted += 1;
+                    if (tasksCompleted < progressTexts.Count())
+                    {
+                        form.TaskTextBox.Text = progressTexts[tasksCompleted];
+                    }
+                }
+            }
+        }
+
+        static private void BackgroundWorker_DoWork(object sender, DoWorkEventArgs e)
+        {
+            GetModList();
+        }
+
+        static public void GetModList()
         {
             if(File.Exists("data.dat"))
             {
+                backgroundWorker.ReportProgress(0);
                 Console.WriteLine("File data.dat exists. Start deserializing data");
                 if (Serialization.Deserialize())
                 {
                     Console.WriteLine("Deserialize complete");
-
-                    Form1 form = (Form1)Form1.ActiveForm;
-                    form.PopulateItemList();
                 }
                 else
                 {
@@ -62,7 +141,7 @@ namespace Overseer
                 Data.Locale[2] = new Dictionary<string, string>(); //Recipes
                 Data.Locale[3] = new Dictionary<string, string>(); //Entities
                 Data.Locale[4] = new Dictionary<string, string>(); //Other
-
+                
                 GetIgnoredMods();
                 GetEnabledMods();
                 CheckExtractedMods();
@@ -71,24 +150,13 @@ namespace Overseer
                 ParseDependencies();
                 BuildLoadingOrder();
                 DataLoader dataloader = new DataLoader();
+                backgroundWorker.ReportProgress(1);
                 SerializeData();
-
-                Form1 form = (Form1)Form1.ActiveForm;
-                form.PopulateItemList();
             }
         }
-
-        private static void SerializeData()
+        static void GetIgnoredMods()
         {
-            Console.WriteLine("Start serializing data");
-            DataSerializeClass data = Data.PrepareToSerialize();
-            Serialization.Serialize(data);
-            Console.WriteLine("Serialize complete");
-        }
-
-        private static void GetIgnoredMods()
-        {
-            if(File.Exists("ignored-mods.txt"))
+            if (File.Exists("ignored-mods.txt"))
             {
                 string[] lines = File.ReadAllLines("ignored-mods.txt");
                 foreach (string line in lines)
@@ -96,11 +164,46 @@ namespace Overseer
                     IgnoredMods.Add(line);
                 }
             }
+            backgroundWorker.ReportProgress(1);
+        }
+        static void GetEnabledMods()
+        {
+            ModPaths = Directory.EnumerateFiles(Settings.FactorioDataPath);
+            string[] lines = File.ReadAllLines(Settings.FactorioDataPath + "\\mod-list.json");
+            for (int i = 3; i < lines.Count() - 4; i += 4)
+            {
+                string mod = lines[i].Substring(15);
+                mod = mod.Replace("\",", "");
+                bool bEnabled = lines[i + 1].Contains("true");
+                if (!IgnoredMods.Contains(mod))
+                {
+                    Modlist.Add(mod, bEnabled);
+                }
+            }
+            backgroundWorker.ReportProgress(1);
+        }
+        static void CheckExtractedMods()
+        {
+            if (Directory.Exists(Settings.tempModPath))
+            {
+                IEnumerable<string> ExtractedModPaths = Directory.EnumerateDirectories(Settings.tempModPath);
+                foreach (string str in ExtractedModPaths)
+                {
+                    string modname = str.Replace(Settings.tempModPath, "");
+                    //parsedModName can be used to check if existing extracted mod is up to date.
+                    //
+                    //TODO: Version checking
+                    string[] parsedModName = modname.Split('_');
+                    ExtractedMods.Add(parsedModName[0]);
+                }
+            }
+            backgroundWorker.ReportProgress(1);
         }
 
         //Checks if the mod is enabled and mod file exists. Extracts if needed.
         static void ExtractMods()
         {
+            int progressStep = Modlist.Keys.Count;
             foreach (string modName in Modlist.Keys)
             {
                 if (modName != "base")
@@ -128,24 +231,8 @@ namespace Overseer
                         }
                     }
                 }
+                backgroundWorker.ReportProgress(progressStep);
             }            
-        }
-
-        static void CheckExtractedMods()
-        {
-            if(Directory.Exists(Settings.tempModPath))
-            {
-                IEnumerable<string> ExtractedModPaths = Directory.EnumerateDirectories(Settings.tempModPath);
-                foreach (string str in ExtractedModPaths)
-                {
-                    string modname = str.Replace(Settings.tempModPath, "");
-                    //parsedModName can be used to check if existing extracted mod is up to date.
-                    //
-                    //TODO: Version checking
-                    string[] parsedModName = modname.Split('_');
-                    ExtractedMods.Add(parsedModName[0]);
-                }
-            }
         }
 
         static void ExtractMod(string modPath, string modName)
@@ -158,26 +245,12 @@ namespace Overseer
             FastZip fz = new FastZip();
             fz.ExtractZip(modPath, Settings.tempModPath, "");
         }
-        static void GetEnabledMods()
-        {
-            ModPaths = Directory.EnumerateFiles(Settings.FactorioDataPath);
-            string[] lines = File.ReadAllLines(Settings.FactorioDataPath + "\\mod-list.json");
-            for (int i = 3; i < lines.Count() - 4; i += 4)
-            {
-                string mod = lines[i].Substring(15);
-                mod = mod.Replace("\",", "");
-                bool bEnabled = lines[i + 1].Contains("true");
-                if(!IgnoredMods.Contains(mod))
-                {
-                    Modlist.Add(mod, bEnabled);
-                }
-            }
-        }
 
         static void BuildModObjects()
         {
             ParseLocaleFile(Settings.FactorioPath + @"\data\base");
             IEnumerable<string> ExtractedModPaths = Directory.EnumerateDirectories(Settings.tempModPath);
+            int progressStep = ExtractedModPaths.Count();
             foreach (string str in ExtractedModPaths)
             {
                 ParseLocaleFile(str);
@@ -209,8 +282,72 @@ namespace Overseer
                             }
                         }
                     }
-                }  
+                    backgroundWorker.ReportProgress(progressStep);
+                }
             }
+        }
+        static void ParseDependencies()
+        {
+            int progressStep = Mods.Count;
+            foreach (Mod mod in Mods)
+            {
+                if (mod.modInfo.dependencies != null)
+                {
+                    foreach (string dep in mod.modInfo.dependencies)
+                    {
+                        string dep2 = dep;
+                        bool Optional = false;
+                        if (dep2.StartsWith("?"))
+                        {
+                            Optional = true;
+                            dep2 = dep2.Trim(new char[] { '?', ' ' });
+                        }
+                        string[] values = dep2.Split(' ');
+                        string name = values[0];
+                        if (!name.Equals("base"))
+                        {
+                            string version = "";
+                            if (values.Length > 1)
+                            {
+                                version = values[2];
+                            }
+
+                            ModDependency modDep = new ModDependency { bOptional = Optional };
+                            bool bFound = false;
+
+                            foreach (Mod m in Mods)
+                            {
+                                ModInfo i = m.modInfo;
+                                if (i.name == name)
+                                {
+                                    bFound = true;
+                                    modDep.Mod = m;
+                                    modDep.bFulfillsRequirements = FulfillsVersionRequirement(i.version, version);
+                                    break;
+                                }
+                            }
+                            if (!bFound)
+                            {
+                                if (!Optional)
+                                {
+                                    mod.MissingMods.Add(dep);
+                                }
+                            }
+                            else
+                            {
+                                mod.Dependencies.Add(modDep);
+                            }
+                        }
+                    }
+                }
+                backgroundWorker.ReportProgress(progressStep);
+            }
+        }
+        static void SerializeData()
+        {
+            DataSerializeClass data = Data.PrepareToSerialize();
+            Serialization.Serialize(data);
+            backgroundWorker.ReportProgress(1);
         }
 
         static void ParseLocaleFile(string str)
@@ -257,7 +394,15 @@ namespace Overseer
                 }
             }
         }
-
+        static void BuildLoadingOrder()
+        {
+            foreach (Mod mod in Mods)
+            {
+                TryToAddModToOrderList(mod);
+            }
+            List<string> l = ModOrder.Keys.ToList();
+            backgroundWorker.ReportProgress(1);
+        }
         static void TryToAddModToOrderList(Mod inMod)
         {
             if (inMod.Dependencies.Count > 0)
@@ -289,72 +434,7 @@ namespace Overseer
             {
                 Console.WriteLine("Mod ignored: {0}", inMod.modInfo.name);
             }
-        }
-
-        static void BuildLoadingOrder()
-        {
-            foreach (Mod mod in Mods)
-            {
-                TryToAddModToOrderList(mod);
-            }
-            List<string> l = ModOrder.Keys.ToList();
-        }
-
-        static void ParseDependencies()
-        {
-            foreach(Mod mod in Mods)
-            {
-                if(mod.modInfo.dependencies != null)
-                {
-                    foreach (string dep in mod.modInfo.dependencies)
-                    {
-                        string dep2 = dep;
-                        bool Optional = false;
-                        if (dep2.StartsWith("?"))
-                        {
-                            Optional = true;
-                            dep2 = dep2.Trim(new char[] { '?', ' '});
-                        }
-                        string[] values = dep2.Split(' ');
-                        string name = values[0];
-                        if (!name.Equals("base"))
-                        {
-                            string version = "";
-                            if (values.Length > 1)
-                            {
-                                version = values[2];
-                            }
-
-                            ModDependency modDep = new ModDependency{ bOptional = Optional };
-                            bool bFound = false;
-
-                            foreach (Mod m in Mods)
-                            {
-                                ModInfo i = m.modInfo;
-                                if (i.name == name)
-                                {
-                                    bFound = true;
-                                    modDep.Mod = m;
-                                    modDep.bFulfillsRequirements = FulfillsVersionRequirement(i.version, version);
-                                    break;
-                                }
-                            }
-                            if (!bFound)
-                            {
-                                if (!Optional)
-                                {
-                                    mod.MissingMods.Add(dep);
-                                }
-                            }
-                            else
-                            {
-                                mod.Dependencies.Add(modDep);
-                            }
-                        }                        
-                    }
-                }
-            }
-        }
+        }  
 
         static bool FulfillsVersionRequirement(string inA, string inB)
         {

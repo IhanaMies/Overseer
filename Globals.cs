@@ -14,9 +14,17 @@ namespace Overseer
         public static string FactorioDataPath = "";
         public static string tempModPath = "";
     }
-    public static class UserFormData
+
+    public static class Functions
     {
-        public static bool bUserHasRecipeListFocus = false;
+        public static Point Sub(Point a, Point b)
+        {
+            int x1 = a.X;
+            int x2 = b.X;
+            int y1 = a.Y;
+            int y2 = b.Y;
+            return new Point(x1 - x2, y1 - y2);
+        }
     }
     
     public static class Data

@@ -205,8 +205,6 @@ namespace Overseer
             {
                 if (!Data.Icons.ContainsKey(itemName))
                 {
-                    //BitmapSource source = PngDecoder.GetIconFromPath(iconpath);
-                    //Data.Icons.Add(itemName, source);
                     Data.Icons.Add(itemName, Image.FromFile(iconpath));
                     return true;
                 }

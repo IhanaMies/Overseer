@@ -16,16 +16,32 @@ namespace Overseer
         [STAThread]
         static void Main()
         {
-            Settings.FactorioDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData) + @"\Factorio\mods\";            
-            Settings.tempModPath = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location) + @"\temp\";
+
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
-            if(File.Exists("settings.cfg"))
+            Initialize();
+            Application.Run(new Form1());
+        }
+
+        static void Initialize()
+        {
+            Settings.FactorioDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData) + @"\Factorio\mods\";
+            Settings.tempModPath = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location) + @"\temp\";
+
+            if(!File.Exists("ignored-mods.txt"))
+            {
+                File.WriteAllLines("ignored-mods.txt", new string[] {
+                    "rso-mod",
+                    "Factorissimo2"
+                });
+            }
+
+            if (File.Exists("settings.cfg"))
             {
                 string[] lines = File.ReadAllLines("settings.cfg");
-                if(!Directory.Exists(lines[0]) || !File.Exists(lines[0] + @"\config-path.cfg"))
+                if (!Directory.Exists(lines[0]) || !File.Exists(lines[0] + @"\config-path.cfg"))
                 {
-                        Application.Run(new FactorioFolderSelectionForm());
+                    Application.Run(new FactorioFolderSelectionForm());
                 }
                 else
                 {
@@ -36,7 +52,6 @@ namespace Overseer
             {
                 Application.Run(new FactorioFolderSelectionForm());
             }
-            Application.Run(new Form1());
         }
     }
 }
